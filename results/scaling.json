@@ -1,0 +1,100 @@
+{
+ "rows": [
+  {
+   "side": 10,
+   "nodes": 100,
+   "edges": 360,
+   "heap_ms_mean": 0.1254,
+   "linear_ms_mean": 0.1961,
+   "heap_speedup_x": 1.56,
+   "expansions": {
+    "dijkstra": 66.3,
+    "astar": 53.1
+   },
+   "astar_saving_pct": 19.97,
+   "astar_optimal": "12/12",
+   "threshold_0p25": {
+    "expansions": 66.4,
+    "saving_pct": -0.13,
+    "optimal": "5/12"
+   }
+  },
+  {
+   "side": 20,
+   "nodes": 400,
+   "edges": 1520,
+   "heap_ms_mean": 0.3872,
+   "linear_ms_mean": 1.126,
+   "heap_speedup_x": 2.91,
+   "expansions": {
+    "dijkstra": 189.7,
+    "astar": 138.9
+   },
+   "astar_saving_pct": 26.76,
+   "astar_optimal": "12/12",
+   "threshold_0p25": {
+    "expansions": 189.9,
+    "saving_pct": -0.13,
+    "optimal": "7/12"
+   }
+  },
+  {
+   "side": 40,
+   "nodes": 1600,
+   "edges": 6240,
+   "heap_ms_mean": 1.4807,
+   "linear_ms_mean": 10.4684,
+   "heap_speedup_x": 7.07,
+   "expansions": {
+    "dijkstra": 586.2,
+    "astar": 429.4
+   },
+   "astar_saving_pct": 26.75,
+   "astar_optimal": "12/12",
+   "threshold_0p25": {
+    "expansions": 589.1,
+    "saving_pct": -0.48,
+    "optimal": "4/12"
+   }
+  },
+  {
+   "side": 70,
+   "nodes": 4900,
+   "edges": 19320,
+   "heap_ms_mean": 5.8163,
+   "linear_ms_mean": 99.0473,
+   "heap_speedup_x": 17.03,
+   "expansions": {
+    "dijkstra": 2083.2,
+    "astar": 1286.5
+   },
+   "astar_saving_pct": 38.25,
+   "astar_optimal": "12/12",
+   "threshold_0p25": {
+    "expansions": 2088.9,
+    "saving_pct": -0.27,
+    "optimal": "1/12"
+   }
+  },
+  {
+   "side": 100,
+   "nodes": 10000,
+   "edges": 39600,
+   "heap_ms_mean": 13.0627,
+   "linear_ms_mean": null,
+   "heap_speedup_x": null,
+   "expansions": {
+    "dijkstra": 4495.2,
+    "astar": 2896.6
+   },
+   "astar_saving_pct": 35.56,
+   "astar_optimal": "12/12",
+   "threshold_0p25": {
+    "expansions": 4464.4,
+    "saving_pct": 0.69,
+    "optimal": "1/12"
+   }
+  }
+ ],
+ "note": "网格路网仅用于规模对照，不参与其它结论。线性扫描版只跑到 4900 节点，再大就太慢了。"
+}

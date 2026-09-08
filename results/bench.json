@@ -1,0 +1,447 @@
+{
+ "network": {
+  "nodes": 23,
+  "edges": 58,
+  "bucket_minutes": 5,
+  "fifo_violations_sampled": 0,
+  "boundary_drops": 8324,
+  "max_boundary_drop_min": 0.3145
+ },
+ "routing": {
+  "queries": 600,
+  "dijkstra_optimal": "600/600",
+  "astar_optimal": "600/600",
+  "pruned_optimal": "600/600",
+  "expansions_mean": {
+   "dijkstra": 12.09,
+   "astar": 6.95,
+   "pruned": 9.62,
+   "label_correcting": 23
+  },
+  "astar_expansion_saving_pct": 42.48,
+  "prune_expansion_saving_pct": 20.41,
+  "latency_ms": {
+   "p50": 0.025,
+   "p95": 0.0333,
+   "p99": 0.0353,
+   "max": 0.0772
+  }
+ },
+ "relax_threshold": {
+  "rows": [
+   {
+    "threshold_min": 0.0,
+    "optimal": "240/240",
+    "optimal_pct": 100.0,
+    "expansions_mean": 12.83,
+    "mean_loss_min": 0.0,
+    "max_loss_min": 0.0
+   },
+   {
+    "threshold_min": 0.05,
+    "optimal": "234/240",
+    "optimal_pct": 97.5,
+    "expansions_mean": 12.83,
+    "mean_loss_min": 0.0005,
+    "max_loss_min": 0.0491
+   },
+   {
+    "threshold_min": 0.1,
+    "optimal": "232/240",
+    "optimal_pct": 96.67,
+    "expansions_mean": 12.83,
+    "mean_loss_min": 0.0013,
+    "max_loss_min": 0.0895
+   },
+   {
+    "threshold_min": 0.25,
+    "optimal": "227/240",
+    "optimal_pct": 94.58,
+    "expansions_mean": 12.82,
+    "mean_loss_min": 0.0054,
+    "max_loss_min": 0.2442
+   },
+   {
+    "threshold_min": 0.5,
+    "optimal": "224/240",
+    "optimal_pct": 93.33,
+    "expansions_mean": 12.82,
+    "mean_loss_min": 0.0092,
+    "max_loss_min": 0.3461
+   },
+   {
+    "threshold_min": 1.0,
+    "optimal": "223/240",
+    "optimal_pct": 92.92,
+    "expansions_mean": 12.79,
+    "mean_loss_min": 0.0118,
+    "max_loss_min": 0.6263
+   },
+   {
+    "threshold_min": 1000000000.0,
+    "optimal": "(退化)",
+    "optimal_pct": null,
+    "expansions_mean": 12.79,
+    "mean_loss_min": null,
+    "max_loss_min": null
+   }
+  ],
+  "note": "**这个消融是无效的，而且无效性是实现位置决定的。**阈值加在松弛条件 `arr < cur - thr` 上，而节点首次被发现时 cur = INF，INF - thr 仍是 INF，所以它永远挡不住首次入堆——展开数的下界恒等于可达节点数。把阈值开到 1e9 （彻底退化）展开仍几乎不降，就是证据。真正能减少展开的是**上界剪枝**（dijkstra(..., prune=True)），见 routing 组的 prune_expansion_saving_pct。"
+ },
+ "gps": {
+  "n_points": 435,
+  "path": [
+   "west_gate",
+   "hub_w",
+   "hub_n",
+   "hub_e",
+   "dorm_c"
+  ],
+  "dwell_points": 36,
+  "noise_sigma_m": 6.0,
+  "dwell_s": 18.0,
+  "raw_observation_error": {
+   "n": 435,
+   "mean_m": 7.262,
+   "p95_m": 14.048,
+   "max_m": 19.094
+  },
+  "rate_5": {
+   "target_rate": 0.05,
+   "actual_rate": 0.046,
+   "longest_gap_points": 15,
+   "raw": {
+    "kept": {
+     "n": 415,
+     "mean_m": 7.246,
+     "p95_m": 14.048,
+     "max_m": 19.094
+    },
+    "gap": {
+     "n": 20,
+     "mean_m": 6.588,
+     "p95_m": 10.078,
+     "max_m": 10.083
+    },
+    "all": {
+     "n": 435,
+     "mean_m": 7.216,
+     "p95_m": 13.918,
+     "max_m": 19.094
+    }
+   },
+   "arclength": {
+    "kept": {
+     "n": 415,
+     "mean_m": 3.342,
+     "p95_m": 8.457,
+     "max_m": 13.163
+    },
+    "gap": {
+     "n": 20,
+     "mean_m": 5.158,
+     "p95_m": 9.151,
+     "max_m": 9.197
+    },
+    "all": {
+     "n": 435,
+     "mean_m": 3.426,
+     "p95_m": 8.856,
+     "max_m": 13.163
+    }
+   }
+  },
+  "rate_15": {
+   "target_rate": 0.15,
+   "actual_rate": 0.1862,
+   "longest_gap_points": 26,
+   "raw": {
+    "kept": {
+     "n": 354,
+     "mean_m": 7.359,
+     "p95_m": 14.417,
+     "max_m": 19.094
+    },
+    "gap": {
+     "n": 81,
+     "mean_m": 7.276,
+     "p95_m": 14.137,
+     "max_m": 14.489
+    },
+    "all": {
+     "n": 435,
+     "mean_m": 7.344,
+     "p95_m": 14.323,
+     "max_m": 19.094
+    }
+   },
+   "arclength": {
+    "kept": {
+     "n": 354,
+     "mean_m": 3.475,
+     "p95_m": 8.565,
+     "max_m": 13.163
+    },
+    "gap": {
+     "n": 81,
+     "mean_m": 6.734,
+     "p95_m": 16.035,
+     "max_m": 16.493
+    },
+    "all": {
+     "n": 435,
+     "mean_m": 4.082,
+     "p95_m": 11.164,
+     "max_m": 16.493
+    }
+   }
+  },
+  "rate_30": {
+   "target_rate": 0.3,
+   "actual_rate": 0.2989,
+   "longest_gap_points": 26,
+   "raw": {
+    "kept": {
+     "n": 305,
+     "mean_m": 7.233,
+     "p95_m": 13.913,
+     "max_m": 19.094
+    },
+    "gap": {
+     "n": 130,
+     "mean_m": 6.823,
+     "p95_m": 14.088,
+     "max_m": 16.606
+    },
+    "all": {
+     "n": 435,
+     "mean_m": 7.11,
+     "p95_m": 14.061,
+     "max_m": 19.094
+    }
+   },
+   "arclength": {
+    "kept": {
+     "n": 305,
+     "mean_m": 3.424,
+     "p95_m": 8.481,
+     "max_m": 12.829
+    },
+    "gap": {
+     "n": 130,
+     "mean_m": 5.437,
+     "p95_m": 15.545,
+     "max_m": 16.493
+    },
+    "all": {
+     "n": 435,
+     "mean_m": 4.026,
+     "p95_m": 10.573,
+     "max_m": 16.493
+    }
+   }
+  }
+ },
+ "congestion": {
+  "accuracy": [
+   {
+    "model": "persistence",
+    "mae_kmh": 1.4472,
+    "rmse_kmh": 1.9521,
+    "n": 113274
+   },
+   {
+    "model": "seasonal",
+    "mae_kmh": 2.0659,
+    "rmse_kmh": 2.7399,
+    "n": 113274
+   },
+   {
+    "model": "ridge",
+    "mae_kmh": 1.2007,
+    "rmse_kmh": 1.6009,
+    "n": 113274
+   }
+  ],
+  "routing": [
+   {
+    "model": "persistence",
+    "n": 300,
+    "realised_excess_pct": 0.3151,
+    "worst_excess_pct": 13.7441
+   },
+   {
+    "model": "seasonal",
+    "n": 300,
+    "realised_excess_pct": 0.1014,
+    "worst_excess_pct": 15.2579
+   },
+   {
+    "model": "ridge",
+    "n": 300,
+    "realised_excess_pct": 0.05,
+    "worst_excess_pct": 4.9436
+   }
+  ],
+  "paired_bootstrap": [
+   {
+    "worse_model": "persistence",
+    "vs": "ridge",
+    "mean_diff_pct_points": 0.2651,
+    "ci95": [
+     0.102,
+     0.4575
+    ],
+    "verdict": "CI excludes 0",
+    "significant": true,
+    "n_differing": 17,
+    "identical_route_share": 0.9433
+   },
+   {
+    "worse_model": "seasonal",
+    "vs": "ridge",
+    "mean_diff_pct_points": 0.0514,
+    "ci95": [
+     -0.0301,
+     0.1779
+    ],
+    "verdict": "CI spans 0",
+    "significant": false,
+    "n_differing": 5,
+    "identical_route_share": 0.9833
+   }
+  ],
+  "note": "速度 MAE 与「路选得好不好」不是一回事：MAE 更低的模型，如果没改变选路，实现行程时间一分钟也省不下来。配对自助（10000 次，重抽 OD×时刻）用来判断名次差是不是噪声。结算真值是 hist[-1]（被预测的那一天），不是基础剖面——第一版用错了，见 bench_congestion 里的注释。"
+ },
+ "policies": {
+  "peak": {
+   "free_flow": {
+    "n": 300,
+    "mean_excess_pct": 1.7323,
+    "p95_excess_pct": 15.3585,
+    "max_excess_pct": 24.0126,
+    "routes_worse_than_optimal": "46/300",
+    "routes_optimal": "254/300"
+   },
+   "daily_mean": {
+    "n": 300,
+    "mean_excess_pct": 1.7323,
+    "p95_excess_pct": 15.3585,
+    "max_excess_pct": 24.0126,
+    "routes_worse_than_optimal": "46/300",
+    "routes_optimal": "254/300"
+   },
+   "peak_profile": {
+    "n": 300,
+    "mean_excess_pct": 0.344,
+    "p95_excess_pct": 1.228,
+    "max_excess_pct": 15.847,
+    "routes_worse_than_optimal": "18/300",
+    "routes_optimal": "282/300"
+   },
+   "time_dep": {
+    "n": 300,
+    "mean_excess_pct": 0.0,
+    "p95_excess_pct": 0.0,
+    "max_excess_pct": 0.0,
+    "routes_worse_than_optimal": "0/300",
+    "routes_optimal": "300/300"
+   }
+  },
+  "offpeak": {
+   "free_flow": {
+    "n": 300,
+    "mean_excess_pct": 0.0,
+    "p95_excess_pct": 0.0,
+    "max_excess_pct": 0.0,
+    "routes_worse_than_optimal": "0/300",
+    "routes_optimal": "300/300"
+   },
+   "daily_mean": {
+    "n": 300,
+    "mean_excess_pct": 0.0,
+    "p95_excess_pct": 0.0,
+    "max_excess_pct": 0.0,
+    "routes_worse_than_optimal": "0/300",
+    "routes_optimal": "300/300"
+   },
+   "peak_profile": {
+    "n": 300,
+    "mean_excess_pct": 4.3887,
+    "p95_excess_pct": 28.8059,
+    "max_excess_pct": 49.0847,
+    "routes_worse_than_optimal": "60/300",
+    "routes_optimal": "240/300"
+   },
+   "time_dep": {
+    "n": 300,
+    "mean_excess_pct": 0.0,
+    "p95_excess_pct": 0.0,
+    "max_excess_pct": 0.0,
+    "routes_worse_than_optimal": "0/300",
+    "routes_optimal": "300/300"
+   }
+  },
+  "note": "选路时看到的边权不同，结算一律放回真实分时路网。free_flow 只看限速，daily_mean 用全天均速，peak_profile 把高峰那一档当全天常数，time_dep 才真按出发时刻查。"
+ },
+ "fleet": {
+  "loop": [
+   "west_gate",
+   "hub_w",
+   "dorm_a",
+   "hub_w",
+   "hub_n",
+   "teach_1",
+   "hub_n",
+   "library",
+   "hub_e",
+   "dorm_c",
+   "hub_e",
+   "east_gate",
+   "hub_e",
+   "hub_s",
+   "teach_4",
+   "hub_s",
+   "stadium",
+   "hub_s",
+   "hub_w",
+   "west_gate"
+  ],
+  "cycle_peak_min": 26.81,
+  "cycle_offpeak_min": 14.516,
+  "headway_min": 4.0,
+  "layover_min": 3.0,
+  "peak": {
+   "fleet": 8,
+   "cycle_min": 26.81,
+   "headway_min": 4.0,
+   "layover_min": 3.0,
+   "next_fleet": 7,
+   "cycle_needed_min": 25.0,
+   "reduction_needed_pct": 6.75
+  },
+  "ladder_peak": [
+   {
+    "reduction_pct": 0.0,
+    "cycle_min": 26.81,
+    "fleet": 8
+   },
+   {
+    "reduction_pct": 7.0,
+    "cycle_min": 24.93,
+    "fleet": 7
+   },
+   {
+    "reduction_pct": 22.0,
+    "cycle_min": 20.91,
+    "fleet": 6
+   },
+   {
+    "reduction_pct": 37.0,
+    "cycle_min": 16.89,
+    "fleet": 5
+   }
+  ],
+  "note": "车辆数是天花板函数，按台阶掉。行程时间降多少与少几辆车不是线性关系——这也是原始简历里「12 → 10」需要单独交代的原因。"
+ }
+}

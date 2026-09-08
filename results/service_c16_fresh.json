@@ -1,0 +1,14 @@
+{
+ "requests": 600,
+ "concurrency": 16,
+ "connection": "fresh-per-request",
+ "nodes": 23,
+ "edges": 58,
+ "latency_ms": {
+  "p50": 3.505,
+  "p95": 4.913,
+  "p99": 514.53,
+  "max": 1027.166
+ },
+ "note": "HTTP 往返，含 socket、JSON 编解码与服务端求解；机器不同结果不同，这个数只对本机有意义。"
+}

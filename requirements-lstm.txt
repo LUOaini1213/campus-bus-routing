@@ -1,0 +1,2 @@
+# 可选：只有 `python bench/bench_all.py --lstm` 需要。CI 不装。
+torch>=2.2

@@ -1,0 +1,69 @@
+name: ci
+
+# 全离线：路网、OD 对、结果产物都提交进仓，没有模型权重、没有网络请求。
+# CI 不装 torch —— LSTM 那一组由本机跑出后提交在 results/bench_with_lstm.json。
+#
+# 依赖版本**钉死**：numpy 的 Generator（PCG64）只在同一 feature release 内承诺
+# 流稳定（NEP 19）。用 >= 会让 CI 装到不同版本、抽样结果全变、--check 直接红，
+# 而根因与代码无关。配对自助已改成纯标准库，OD 对已固化，这里再把版本锁上。
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+      - name: README numbers recompute
+        run: python scripts/check_readme.py
+      - name: Network regenerates identically
+        run: |
+          cp network/campus_graph.json /tmp/committed.json
+          python scripts/build_network.py
+          python - <<'PY'
+          import json, sys
+          a = json.load(open('/tmp/committed.json', encoding='utf-8'))
+          b = json.load(open('network/campus_graph.json', encoding='utf-8'))
+          sys.exit(0 if a == b else "network/campus_graph.json 与 build_network.py 的输出不一致")
+          PY
+      - name: Committed benchmark still holds
+        run: python bench/bench_all.py --check
+      - name: Robustness sweep still holds
+        run: python bench/bench_robustness.py --check
+      - name: Figure redraws identically
+        run: |
+          cp docs/network.svg /tmp/committed.svg
+          python scripts/draw_network.py
+          diff -q /tmp/committed.svg docs/network.svg
+      - name: Scaling experiment runs (small sizes only, for time)
+        run: python bench/bench_scaling.py --sides 10 20 --queries 4 --out /tmp/scaling.json
+
+  container:
+    # 运行镜像不装任何第三方包：Network.load 在没有 numpy 时退回纯 Python 列表。
+    # 这一条声明写在 README 里，所以要真的验一次，而不是只写着。
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the zero-dependency image
+        run: docker build -t campus-bus .
+      - name: It answers over HTTP
+        run: |
+          docker run -d --name cb -p 8080:8080 campus-bus
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break || sleep 1; done
+          curl -sf "http://127.0.0.1:8080/route?from=west_gate&to=dorm_c&depart=470" -o /tmp/r.json
+          cat /tmp/r.json
+          python -c "import json;d=json.load(open('/tmp/r.json'));assert d['path'][0]=='west_gate' and d['path'][-1]=='dorm_c';print('ok')"
+          test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:8080/route?from=west_gate&to=dorm_c&depart=nan')" = "400"
+          docker logs cb
+          docker rm -f cb

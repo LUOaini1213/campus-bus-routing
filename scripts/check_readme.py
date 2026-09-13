@@ -201,6 +201,35 @@ def main() -> int:
     want_tag("预测 · 「名义最好」必须落在多付最小的模型上", "名义最好",
              min(rte.values(), key=lambda x: x["realised_excess_pct"])["model"])
 
+    # --- 功效那一段 ---------------------------------------------------------
+    # 「有可观概率一个都没抽到」原来是全仓唯一一条只有叙述、没有数的结论。
+    # bench/bench_power.py 现在把它算成数，这里把 README 的说法钉回产物。
+    power = load("power.json")
+    pw = {(c["artefact"], c["worse_model"]): c for c in power["comparisons"]}
+    ridge_pw = pw[("bench_with_lstm.json", "ridge")]
+    seas_pw = pw[("bench_with_lstm.json", "seasonal")]
+    want("功效 · ridge 那一组的 k、n 与零分歧概率",
+         r"ridge 那一组（k=(\d+), n=(\d+)）算出来是 \*\*([\d.]+)%\*\*："
+         r"自助分布在 0 上有一个 ([\d.]+)% 的原子",
+         [ridge_pw["n_differing"], ridge_pw["n"],
+          ridge_pw["p_zero_pct"], ridge_pw["p_zero_pct"]])
+    want("功效 · 下尾概率", r"而 95% 区间的下尾只有 \*\*([\d.]+)%\*\*",
+         [power["tail_alpha"] * 100])
+    want("功效 · seasonal 的 k 与零分歧概率",
+         r"seasonal 的 k=(\d+) 把概率压到 \*\*([\d.]+)%\*\*",
+         [seas_pw["n_differing"], seas_pw["p_zero_pct"]])
+    want("功效 · seasonal 的下界没停在 0",
+         r"它的下界就没有停在 0（(-[\d.]+)）", [seas_pw["ci95_lo"]])
+    want("功效 · 预测与产物的一致率", r"\*\*一致率 (\d+)/(\d+)\*\*",
+         [sum(c["predicts_lower_bound_at_zero"] == c["lower_bound_is_zero"]
+              for c in power["comparisons"]), len(power["comparisons"])])
+    want("功效 · 设计分辨率", r"n=(\d+) 时 k 要到 \*\*(\d+)\*\* 下界才可能离开 0",
+         [power["design"]["n"], power["design"]["min_k_for_lower_bound_to_leave_zero"]])
+    want("功效 · 反解的分歧率", r"若要在 (\d+)% 的分歧率上不撞这个伪影",
+         [int(round(power["design"]["observed_differing_rate"] * 100))])
+    want("功效 · 反解的配对数", r"配对数至少得 \*\*(\d+)\*\* 个",
+         [power["design"]["min_pairs_at_observed_rate"]])
+
     sc = {row["nodes"]: row for row in scaling}
     want("规模 · 4900 节点堆加速", r"\| 4,900 \| [\d,]+ \| [\d.]+ ms \| [\d.]+ ms \| \*\*([\d.]+)×\*\*",
          [sc[4900]["heap_speedup_x"]])

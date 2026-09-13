@@ -11,7 +11,10 @@ civil-buddy 的 `render_eval_table.py --check README.md`、malaysia 的
 两条设计要点（都从 navsim 抄来）：
 1. **断言"抓到的条目数 == 期望条目数"**。否则改 README 措辞导致某条不再匹配时，
    检查会静默跳过它，看起来还是绿的。这比漏检更危险。
-2. **连续量给容差、序数事实严格相等**，与 `bench_all.py --check` 同一套口径。
+2. **容差按显示精度给、计数与序数事实严格相等**。这条与 `bench_all.py --check`
+   的口径**故意不同**：那边比的是「重跑一遍 vs 已提交结果」，两边都是浮点算出来的，
+   所以要留 1e-6 吸收末位抖动；这边比的是「README 上的字面值 vs 已提交的 JSON」，
+   两边都是固定文本，唯一合法的差异只有四舍五入。见 `close()`。
 """
 from __future__ import annotations
 
@@ -23,15 +26,38 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
-REL_TOL = 5e-3          # README 里的数字是四舍五入过的展示值，容差按显示精度给
 
 
 def load(name: str) -> dict:
     return json.loads((ROOT / "results" / name).read_text(encoding="utf-8"))
 
 
-def close(a: float, b: float, tol: float = REL_TOL) -> bool:
-    return abs(a - b) <= tol * max(1.0, abs(a), abs(b))
+def half_ulp(shown: str) -> float:
+    """README 上写成 `shown` 的数，四舍五入本身能带来的最大误差。
+
+    显示 `0.3145` 是四位小数，四舍五入最多差 0.00005；显示 `513` 最多差 0.5。
+    """
+    frac = shown.strip().split(".", 1)
+    return 0.5 * 10 ** -(len(frac[1]) if len(frac) == 2 else 0)
+
+
+def close(shown: str, expected: float) -> bool:
+    """按**显示精度**判定 README 的字面值与产物是否一致。
+
+    原来的写法是 `abs(a-b) <= 5e-3 * max(1.0, |a|, |b|)`。那个 `max(1.0, ...)` 地板
+    让所有小于 1 的量的容差恒等于 0.005 绝对值——而 FIFO 最大下降 0.3145 min、
+    配对自助 CI 下界 0.1167 pp 这些本仓最精细的结论恰好都小于 1，等于只核到两位
+    小数：0.3145 写成 0.3190（错 1.4%）照样绿。而那个 5e-3 的相对项在另一头同样
+    宽：平均展开 12.09 写成 12.15 也在容差内。护栏名义覆盖、实际失效。
+
+    现在的容差**只有**显示精度这一项，没有相对项。理由是这个脚本比的两边都是固定
+    文本（README 的字面值 vs 已提交的 JSON），没有任何浮点噪声可言，唯一合法的差异
+    就是四舍五入本身：`0.44 ms` 对 0.436、`513 ms` 对 512.515 都是正确的展示值，
+    落在 half_ulp 之内；再宽一点就只是在放行打字错误。
+
+    需要吸收重跑抖动的是 `bench_all.py --check`（重跑 vs 已提交），那边留了 1e-6。
+    """
+    return abs(float(shown) - expected) <= half_ulp(shown)
 
 
 def main() -> int:
@@ -41,8 +67,7 @@ def main() -> int:
     problems: list[str] = []
     checked = 0
 
-    def want(label: str, pattern: str, expected, n_expected: int = 1,
-             tol: float = REL_TOL, idx: int = 0):
+    def want(label: str, pattern: str, expected, n_expected: int = 1, idx: int = 0):
         """在 README 里找 pattern，把第 idx 处匹配的捕获组逐个与 expected 比。
 
         `n_expected` 是 navsim 那条防呆：**匹配数不对就直接报错**，否则改 README
@@ -60,7 +85,13 @@ def main() -> int:
             if isinstance(e, str):
                 if g.strip() != e:
                     problems.append("%s: README %r vs 产物 %r" % (label, g.strip(), e))
-            elif not close(float(g), float(e), tol):
+            elif isinstance(e, int) and not isinstance(e, bool):
+                # 计数（查询数、节点数、有分歧的配对数、车辆数）是序数事实，
+                # 一变就说明实验真的变了，不是舍入——严格相等，不给容差。
+                if g.strip() != str(e):
+                    problems.append("%s: README %s vs 产物 %d（计数必须严格相等）"
+                                    % (label, g.strip(), e))
+            elif not close(g, float(e)):
                 problems.append("%s: README %s vs 产物 %s" % (label, g, e))
 
     r = bench["routing"]

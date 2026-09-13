@@ -210,7 +210,7 @@ def main() -> int:
     seas_pw = pw[("bench_with_lstm.json", "seasonal")]
     want("功效 · ridge 那一组的 k、n 与零分歧概率",
          r"ridge 那一组（k=(\d+), n=(\d+)）算出来是 \*\*([\d.]+)%\*\*："
-         r"自助分布在 0 上有一个 ([\d.]+)% 的原子",
+         r"自助分布在 0 上至少有 ([\d.]+)% 的质量",
          [ridge_pw["n_differing"], ridge_pw["n"],
           ridge_pw["p_zero_pct"], ridge_pw["p_zero_pct"]])
     want("功效 · 下尾概率", r"而 95% 区间的下尾只有 \*\*([\d.]+)%\*\*",

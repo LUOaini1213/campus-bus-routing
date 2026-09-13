@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""把 README 里的每个数字回算一遍，对不上就报错。
+"""把 README 里出自 `results/` 的数字逐个回算一遍，对不上就报错。
 
     python scripts/check_readme.py
 

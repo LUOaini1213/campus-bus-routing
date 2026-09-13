@@ -440,7 +440,7 @@ class Robustness(unittest.TestCase):
 
 class ReadmeNumbers(unittest.TestCase):
     def test_readme_matches_the_committed_results(self):
-        """README 的每个数字都由 scripts/check_readme.py 回算。
+        """README 里出自 results/ 的数字都由 scripts/check_readme.py 回算。
 
         同门三个仓都有这道；本仓前两轮是手工核的，核完就扔——手工核的问题不是
         当时不准，是下次改 README 时没人拦着。

@@ -210,6 +210,74 @@ def main() -> int:
          [f["cycle_peak_min"]])
     want("车队 · 少一辆需降", r"少一辆车需要周期时间降 \*\*([\d.]+)%\*\*",
          [f["peak"]["reduction_needed_pct"]])
+    # 车队台阶表原本一个格子都没进回算——26.81 改成 96.81 也是绿的。
+    ladder = f["ladder_peak"]
+    want("车队 · 台阶表首行", r"\| (\d+)% \| ([\d.]+) \| \*\*(\d+)\*\* \|",
+         [int(ladder[0]["reduction_pct"]), ladder[0]["cycle_min"], ladder[0]["fleet"]])
+    for i in range(1, 4):
+        want("车队 · 台阶表第 %d 行" % (i + 1), r"\| (\d+)% \| ([\d.]+) \| (\d+) \|",
+             [int(ladder[i]["reduction_pct"]), ladder[i]["cycle_min"], ladder[i]["fleet"]],
+             n_expected=3, idx=i - 1)
+
+    # --- HTTP 延迟表 ---------------------------------------------------------
+    # 这张表撑着简历里「Docker 响应 <50 ms」那条，却是覆盖最差的一张：12 个数字
+    # 一个都没进回算，实测把 17.7 写成 177、515 写成 5，check_readme 照样退出 0。
+    # 延迟值本身跨机器不可比（`bench_all.py` 的 EXEMPT_SUFFIX 就是为此），但
+    # 「README 的字面值 == 已提交 JSON」这件事与本机性能无关，CI 里比它是安全的。
+    c1k, c16k, c16f = (load("service_c1_keep.json"), load("service_c16_keep.json"),
+                       load("service_c16_fresh.json"))
+    lat_keep = (r"\| (\d+) \| 复用 \| ([\d.]+) ms \| ([\d.]+) ms \| "
+                r"\*\*([\d.]+) ms\*\* \| ([\d.]+) ms \|")
+    for label, svc, idx in (("并发 1 复用", c1k, 0), ("并发 16 复用", c16k, 1)):
+        L = svc["latency_ms"]
+        want("延迟 · " + label, lat_keep,
+             [svc["concurrency"], L["p50"], L["p95"], L["p99"], L["max"]],
+             n_expected=2, idx=idx)
+    Lf = c16f["latency_ms"]
+    want("延迟 · 并发 16 每请求新建",
+         r"\| (\d+) \| 每请求新建 \| ([\d.]+) ms \| ([\d.]+) ms \| "
+         r"\*\*([\d.]+) ms\*\* \| ([\d.]+) ms \|",
+         [c16f["concurrency"], Lf["p50"], Lf["p95"], Lf["p99"], Lf["max"]])
+    want("延迟 · 前两行的 p99", r"p99 分别是 ([\d.]+) ms 与 ([\d.]+) ms",
+         [c1k["latency_ms"]["p99"], c16k["latency_ms"]["p99"]])
+    want("延迟 · 新建连接的 p99 与倍数",
+         r"新建 TCP 连接时 p99 是 ([\d.]+) ms，比复用连接差 \*\*([\d.]+) 倍\*\*",
+         [Lf["p99"], Lf["p99"] / c16k["latency_ms"]["p99"]])
+    want("延迟 · 第三行的 p50", r"第三行的 p50 只有 ([\d.]+) ms", [Lf["p50"]])
+    want("延迟 · 复用行的 max 孤点", r"复用连接那行的 max 也有一个 ([\d.]+) ms 的孤点",
+         [c16k["latency_ms"]["max"]])
+    want("延迟 · 求解本身的 p99", r"求解本身 p99 只有 \*\*([\d.]+) ms\*\*",
+         [r["latency_ms"]["p99"]])
+
+    # 三份 service_*.json 的元信息：README 的三行必须真的是三次不同配置的测量，
+    # 而且量在同一张图上。这些不是 README 里的数字，单独计数。
+    structural = 0
+
+    def want_fact(label: str, got, expected):
+        nonlocal structural
+        structural += 1
+        if got != expected:
+            problems.append("%s: 产物是 %r，期望 %r" % (label, got, expected))
+
+    want_fact("延迟 · 三行是三种不同配置",
+              sorted((s["concurrency"], s["connection"]) for s in (c1k, c16k, c16f)),
+              [(1, "keep-alive"), (16, "fresh-per-request"), (16, "keep-alive")])
+    want_fact("延迟 · 三次测量的请求数一致",
+              [s["requests"] for s in (c1k, c16k, c16f)], [c1k["requests"]] * 3)
+    want_fact("延迟 · 三次都量在同一张图上",
+              [(s["nodes"], s["edges"]) for s in (c1k, c16k, c16f)],
+              [(net["nodes"], net["edges"])] * 3)
+    for name, svc in (("c1_keep", c1k), ("c16_keep", c16k), ("c16_fresh", c16f)):
+        L = svc["latency_ms"]
+        want_fact("延迟 · %s 的分位数单调" % name,
+                  [L["p50"] <= L["p95"] <= L["p99"] <= L["max"]], [True])
+
+    # 自述与实现必须对齐：README 有两处宣称回算了「N 个数字」（中英各一）。
+    # 这种自述一旦和实现脱节，就又成了一句不可核验的声明——这里把它也算进来，
+    # N 必须等于这次真的核过的条数（含这两条自检本身）。
+    declared = checked + 2
+    want("自述 · 中文回算条数", r"README 的 (\d+) 个数字逐个回算", [declared])
+    want("自述 · 英文回算条数", r"re-checks (\d+) numbers", [declared])
 
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if problems:
@@ -217,7 +285,8 @@ def main() -> int:
         for p in problems:
             print("  " + p)
         return 1
-    print("ok: README 的 %d 个数字全部与 results/ 对得上" % checked)
+    print("ok: README 的 %d 个数字全部与 results/ 对得上（另有 %d 条结构性断言）"
+          % (checked, structural))
     return 0
 
 

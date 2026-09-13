@@ -121,8 +121,54 @@ def main() -> int:
          [acc["persistence"]["mae_kmh"], rte["persistence"]["realised_excess_pct"],
           boot["persistence"]["mean_diff_pct_points"],
           boot["persistence"]["ci95"][0], boot["persistence"]["ci95"][1]])
+    want("预测 · seasonal 显著性",
+         r"\| seasonal[^|]*\| \*\*([\d.]+)（最差）\*\* \| ([\d.]+)% \| \+([\d.]+) pp "
+         r"\[(-[\d.]+), ([\d.]+)\] 不显著 \| (\d+)/300 \|",
+         [acc["seasonal"]["mae_kmh"], rte["seasonal"]["realised_excess_pct"],
+          boot["seasonal"]["mean_diff_pct_points"],
+          boot["seasonal"]["ci95"][0], boot["seasonal"]["ci95"][1],
+          boot["seasonal"]["n_differing"]])
+    want("预测 · ridge 显著性",
+         r"\| ridge[^|]*\|[^|]*\|[^|]*\| \+([\d.]+) pp \[([\d.]+), ([\d.]+)\] 不显著 \| (\d+)/300 \|",
+         [boot["ridge"]["mean_diff_pct_points"],
+          boot["ridge"]["ci95"][0], boot["ridge"]["ci95"][1],
+          boot["ridge"]["n_differing"]])
+    want("预测 · LSTM 行", r"\| LSTM[^|]*\| ([\d.]+) \| ([\d.]+)% \|",
+         [acc["lstm"]["mae_kmh"], rte["lstm"]["realised_excess_pct"]])
     want("预测 · 有分歧的配对数", r"300 个配对里只有 \*\*(\d+)\*\* 个让",
          [boot["seasonal"]["n_differing"]])
+    want("预测 · ridge 与 LSTM 的差", r"两者只差 \*\*\+([\d.]+) pp\*\*",
+         [boot["ridge"]["mean_diff_pct_points"]])
+    want("预测 · ridge 的 CI 与分歧数",
+         r"95% CI \*\*\[([\d.]+), ([\d.]+)\]\*\* 跨 0，300 个配对里只有 \*\*(\d+)\*\* 个有分歧",
+         [boot["ridge"]["ci95"][0], boot["ridge"]["ci95"][1], boot["ridge"]["n_differing"]])
+
+    # 结构性断言：README 里「（最好）」「（最差）」「名义最好」这三个标注必须与产物的
+    # argmin / argmax 一致。逐点比数字拦不住「表格改了、上面的结论句没跟着改」——
+    # 2026-09-13 修掉的那句「ridge 现在两项都最好」就是这么活下来的：表里 LSTM 的
+    # 多付 0.0354% 明明比 ridge 的 0.05% 低，数字逐个都对得上，只有那句话是反的。
+    def tagged_model(tag: str) -> list[str]:
+        out = []
+        for line in text.splitlines():
+            m = re.match(r"\| ([A-Za-z]+)（", line)
+            if m and tag in line:
+                out.append(m.group(1).lower())
+        return out
+
+    def want_tag(label: str, tag: str, expected: str):
+        nonlocal checked
+        checked += 1
+        got = tagged_model(tag)
+        if got != [expected]:
+            problems.append("%s: README 把 %s 标在 %s，产物说该是 %r"
+                            % (label, tag, got or "（没有任何一行）", expected))
+
+    want_tag("预测 · 「（最好）」必须落在 MAE 最小的模型上", "（最好）",
+             min(acc.values(), key=lambda x: x["mae_kmh"])["model"])
+    want_tag("预测 · 「（最差）」必须落在 MAE 最大的模型上", "（最差）",
+             max(acc.values(), key=lambda x: x["mae_kmh"])["model"])
+    want_tag("预测 · 「名义最好」必须落在多付最小的模型上", "名义最好",
+             min(rte.values(), key=lambda x: x["realised_excess_pct"])["model"])
 
     sc = {row["nodes"]: row for row in scaling}
     want("规模 · 4900 节点堆加速", r"\| 4,900 \| [\d,]+ \| [\d.]+ ms \| [\d.]+ ms \| \*\*([\d.]+)×\*\*",

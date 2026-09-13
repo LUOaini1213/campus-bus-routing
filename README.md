@@ -46,7 +46,7 @@ HTTP 服务。**每个结论都对应 `results/` 里一份可复跑的产物，R
 pip install -r requirements.txt
 python scripts/build_network.py          # 生成 network/campus_graph.json
 python -m unittest discover -s tests -v  # 37 个测试
-python scripts/check_readme.py           # README 的 43 个数字逐个回算
+python scripts/check_readme.py           # README 的 62 个数字逐个回算
 python bench/bench_all.py                # 四组测量 -> results/bench.json
 python -m campus_bus.service --port 8080 # 起服务
 curl "http://127.0.0.1:8080/route?from=west_gate&to=dorm_c&depart=470"
@@ -245,8 +245,11 @@ A\* 少展开 **42.48%**，上界剪枝省下 **20.41%**，答案都一模一样
 | ridge（滞后特征 + 时刻） | **1.2007（最好）** | 0.05% | +0.0146 pp [0.0, 0.0394] 不显著 | 3/300 |
 | LSTM（单层，32 隐单元） | 1.2979 | 0.0354% | —（名义最好） | — |
 
-**ridge 现在两项都最好，原来那句头条不成立了。** 还站得住的是更弱、也更有意思的
-一句：**seasonal 的 MAE 比 ridge 差 72%，在选路上却分不出来。**
+**ridge 的 MAE 最好；选路上名义最好的是 LSTM。** 两者只差 **+0.0146 pp**，配对自助的
+95% CI **[0.0, 0.0394]** 跨 0，300 个配对里只有 **3** 个有分歧——这个实验分不出它们。
+所以原来那句「MAE 最好的不是选路最好的」，在修正后的口径下同样没有证据支撑：不是
+被反证，而是这个实验区分不了。还站得住的是更弱、也更有意思的一句：**seasonal 的
+MAE 比 ridge 差 72%，在选路上却分不出来。**
 
 **"不显著"必须连着功效一起说。** 300 个配对里只有 **6** 个让 seasonal 与最好者
 分道扬镳，ridge 更只有 3 个。这么小的 k，自助重抽有可观概率一个都没抽到，

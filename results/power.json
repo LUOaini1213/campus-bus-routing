@@ -13,6 +13,8 @@
    "p_zero_pct": 0.0,
    "p_zero_mc": 0.0,
    "predicts_lower_bound_at_zero": false,
+   "synthetic_ci95_lo": 0.03333333,
+   "synthetic_lower_bound_is_zero": false,
    "ci95_lo": 0.102,
    "lower_bound_is_zero": false
   },
@@ -26,6 +28,8 @@
    "p_zero_pct": 0.65,
    "p_zero_mc": 0.0045,
    "predicts_lower_bound_at_zero": false,
+   "synthetic_ci95_lo": 0.00333333,
+   "synthetic_lower_bound_is_zero": false,
    "ci95_lo": -0.0301,
    "lower_bound_is_zero": false
   },
@@ -39,6 +43,8 @@
    "p_zero_pct": 0.0,
    "p_zero_mc": 0.0,
    "predicts_lower_bound_at_zero": false,
+   "synthetic_ci95_lo": 0.03333333,
+   "synthetic_lower_bound_is_zero": false,
    "ci95_lo": 0.1167,
    "lower_bound_is_zero": false
   },
@@ -52,6 +58,8 @@
    "p_zero_pct": 0.23,
    "p_zero_mc": 0.002,
    "predicts_lower_bound_at_zero": false,
+   "synthetic_ci95_lo": 0.00666667,
+   "synthetic_lower_bound_is_zero": false,
    "ci95_lo": -0.0105,
    "lower_bound_is_zero": false
   },
@@ -65,12 +73,17 @@
    "p_zero_pct": 4.9,
    "p_zero_mc": 0.0481,
    "predicts_lower_bound_at_zero": true,
+   "synthetic_ci95_lo": 0.0,
+   "synthetic_lower_bound_is_zero": true,
    "ci95_lo": 0.0,
    "lower_bound_is_zero": true
   }
  ],
  "prediction_matches_artefacts": true,
+ "closed_form_matches_paired_bootstrap": true,
  "design": {
+  "from_artefact": "bench_with_lstm.json",
+  "from_worse_model": "ridge",
   "n": 300,
   "min_k_for_lower_bound_to_leave_zero": 4,
   "observed_differing_rate": 0.01,

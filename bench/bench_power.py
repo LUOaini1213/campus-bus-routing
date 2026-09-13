@@ -21,11 +21,19 @@ P > 2.5% 时下界不可能落在 0 以上，报出来就是 0.0。这不是「�
 是采样分辨率的产物——和第 2 节里 `check_fifo` 那个 0 是同一类错误。
 
 脚本做三件事：
-1. 对已提交的每一组配对自助，算出这个概率（闭式 + 用 stats 里同一套重抽机制做的
-   蒙特卡洛复核），并记下「预测下界会被 0 占住」与「产物里的下界确实是 0.0」是否
-   一致——五组对照全部一致，两边都不是巧合；
+1. 对已提交的每一组配对自助，用三条互相独立的路算这件事：闭式一条；蒙特卡洛一条
+   （`random.Random` + `randrange(n)`，与 `stats.paired_bootstrap` 是同一套重抽，
+   但在本文件里重写了一遍——那个函数只返回分位数，数不到「重抽均值恰为 0」出现过
+   几次）；再把 k 个 1 与 n−k 个 0 直接喂进 `campus_bus.stats.paired_bootstrap`
+   真跑一遍，看它报出来的下界是不是真如闭式预测的那样停在 0.0。三条都记进
+   `results/power.json`，还记下「预测下界会被 0 占住」与「产物里的下界确实是 0.0」
+   是否一致——五组对照全部一致，两边都不是巧合；
 2. 反解这个设计的分辨率：n=300 时 k 要多大，下尾才薄不过 0 上那块质量；
 3. 反解规模：按观察到的分歧率，配对数要多少才不撞上这个伪影。
+
+第 2、3 步是对**一组指定的对照**反解的（`DESIGN_KEY`，即 ridge-vs-LSTM），按名字
+取，不按产物里的排列顺序取——否则 `bench_all.py` 那边换个模型顺序，README 里的
+「1% 的分歧率」「368」就会悄悄换成另一组对照的数。
 
 纯标准库（`random.Random`，与 `campus_bus/stats.py` 同路线），不引 numpy，跨机器
 逐位一致。
@@ -42,13 +50,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from campus_bus import stats  # noqa: E402  （要先把仓根放进 sys.path）
+
 RESULTS = ROOT / "results"
 OUT = RESULTS / "power.json"
 
 TAIL_ALPHA = 0.025        # 95% 百分位区间的单侧尾概率，与 stats.paired_bootstrap 的 alpha/2 一致
-MC_DRAWS = 10000          # 蒙特卡洛复核的重抽次数，与 stats.B_DEFAULT 一致
+MC_DRAWS = stats.B_DEFAULT   # 蒙特卡洛复核的重抽次数：直接取自 stats，不另抄一个 10000
 MC_SEED = 20260913
 SOURCES = ("bench.json", "bench_with_lstm.json")
+# 反解设计分辨率（第 2、3 步）用哪一组对照。显式按 (产物, worse_model) 取：
+# 产物里 paired_bootstrap 的排列顺序不是契约，不能拿它当选择器。
+DESIGN_KEY = ("bench_with_lstm.json", "ridge")
 
 
 def p_zero(n: int, k: int) -> float:
@@ -57,7 +70,11 @@ def p_zero(n: int, k: int) -> float:
 
 
 def p_zero_mc(n: int, k: int, draws: int = MC_DRAWS, seed: int = MC_SEED) -> float:
-    """同一件事用 stats.paired_bootstrap 的那套重抽机制真抽一遍。
+    """同一套重抽机制（`random.Random` + `randrange(n)`）在这里重写一遍，真抽。
+
+    为什么不直接调 `stats.paired_bootstrap`：那个函数只返回 (mean, lo, hi)，数不到
+    「重抽均值恰为 0」出现了多少次，而这里要的正是这个频次。走 stats 那条真路径的
+    是下面的 `stats_lower_bound()`。
 
     这里只关心「抽到的索引里有没有落在前 k 个上」——差值的具体数值不影响这个概率，
     所以不需要原始差值向量，把分歧配对记为索引 0..k-1 即可（可交换性）。
@@ -71,6 +88,18 @@ def p_zero_mc(n: int, k: int, draws: int = MC_DRAWS, seed: int = MC_SEED) -> flo
         else:
             hits += 1
     return hits / draws
+
+
+def stats_lower_bound(n: int, k: int) -> float:
+    """把 k 个 1、n−k 个 0 喂进 `stats.paired_bootstrap`，取它报出的 95% CI 下界。
+
+    这是对闭式那句话的直接检验，而且走的是产物本身用的那个函数、那个默认种子、
+    那个默认 B 与 alpha：0 上的质量厚过下尾时，下界应当**恰好**是 0.0；薄过下尾时
+    就不该是。差值取 1 与 0 只是为了让「均值为 0」等价于「一个分歧配对都没抽到」，
+    与真实差值的大小无关（同上，可交换性）。
+    """
+    _, lo, _ = stats.paired_bootstrap([1.0] * k + [0.0] * (n - k))
+    return lo
 
 
 def min_k_for_thin_tail(n: int, tail: float = TAIL_ALPHA) -> int:
@@ -99,6 +128,7 @@ def run() -> dict:
         for b in art["paired_bootstrap"]:
             n, k = n_by_model[b["worse_model"]], b["n_differing"]
             p = p_zero(n, k)
+            synth_lo = stats_lower_bound(n, k)
             comparisons.append({
                 "artefact": src,
                 "worse_model": b["worse_model"],
@@ -110,21 +140,35 @@ def run() -> dict:
                 "p_zero_mc": p_zero_mc(n, k),
                 # 0 上的质量厚过下尾 -> 下界不可能落在 0 以上；这是预测
                 "predicts_lower_bound_at_zero": p > TAIL_ALPHA,
+                # 同样的 (n, k) 真喂进 stats.paired_bootstrap 后报出的下界；这是真跑
+                "synthetic_ci95_lo": round(synth_lo, 8),
+                "synthetic_lower_bound_is_zero": synth_lo == 0.0,
                 # 产物里实际报出来的下界是不是 0.0；这是事实
                 "ci95_lo": b["ci95"][0],
                 "lower_bound_is_zero": b["ci95"][0] == 0.0,
             })
     agree = all(c["predicts_lower_bound_at_zero"] == c["lower_bound_is_zero"]
                 for c in comparisons)
-    n_design = comparisons[-1]["n"]
-    rate = comparisons[-1]["n_differing"] / n_design
+    agree_bootstrap = all(
+        c["predicts_lower_bound_at_zero"] == c["synthetic_lower_bound_is_zero"]
+        for c in comparisons)
+    by_key = {(c["artefact"], c["worse_model"]): c for c in comparisons}
+    if DESIGN_KEY not in by_key:
+        raise SystemExit("产物里没有 %s 的 %s 这一组对照，第 2、3 步无从算起"
+                         % (DESIGN_KEY[0], DESIGN_KEY[1]))
+    design_src = by_key[DESIGN_KEY]
+    n_design = design_src["n"]
+    rate = design_src["n_differing"] / n_design
     return {
         "tail_alpha": TAIL_ALPHA,
         "mc_draws": MC_DRAWS,
         "mc_seed": MC_SEED,
         "comparisons": comparisons,
         "prediction_matches_artefacts": agree,
+        "closed_form_matches_paired_bootstrap": agree_bootstrap,
         "design": {
+            "from_artefact": DESIGN_KEY[0],
+            "from_worse_model": DESIGN_KEY[1],
             "n": n_design,
             "min_k_for_lower_bound_to_leave_zero": min_k_for_thin_tail(n_design),
             "observed_differing_rate": round(rate, 6),
@@ -144,7 +188,9 @@ def main() -> int:
     args = ap.parse_args()
 
     got = run()
-    print(json.dumps(got, ensure_ascii=False, indent=1))
+    if not args.check:
+        # --check 时不打这份 JSON：它有 80 行，进 CI 日志纯属噪声。
+        print(json.dumps(got, ensure_ascii=False, indent=1))
     if not got["prediction_matches_artefacts"]:
         print("闭式预测与产物里的 CI 下界对不上——README 第 6 节那段解释要重写")
         return 1

@@ -225,8 +225,12 @@ def main() -> int:
               for c in power["comparisons"]), len(power["comparisons"])])
     want("功效 · 设计分辨率", r"n=(\d+) 时 k 要到 \*\*(\d+)\*\* 下界才可能离开 0",
          [power["design"]["n"], power["design"]["min_k_for_lower_bound_to_leave_zero"]])
-    want("功效 · 反解的分歧率", r"若要在 (\d+)% 的分歧率上不撞这个伪影",
-         [int(round(power["design"]["observed_differing_rate"] * 100))])
+    # README 现在点名了这个分歧率是哪一组对照的，power.json 也把这一组记了下来：
+    # 两边必须指同一组，否则「1%」「368」会悄悄换成另一组对照的数。
+    want("功效 · 反解的分歧率",
+         r"若要在 ([a-z]+) 那一组的 (\d+)% 分歧率上不撞这个",
+         [power["design"]["from_worse_model"],
+          int(round(power["design"]["observed_differing_rate"] * 100))])
     want("功效 · 反解的配对数", r"配对数至少得 \*\*(\d+)\*\* 个",
          [power["design"]["min_pairs_at_observed_rate"]])
 
@@ -287,6 +291,12 @@ def main() -> int:
         structural += 1
         if got != expected:
             problems.append("%s: 产物是 %r，期望 %r" % (label, got, expected))
+
+    # 第 6 节那句「把 k 个 1、n−k 个 0 喂进 paired_bootstrap，闭式预测的那一组下界
+    # 确实恰好是 0.0」不是数字，是一条真假陈述——bench_power.py 每次重算它，这里
+    # 断言它为真。它一旦翻成 False，那段解释就得重写，而不是改个数字了事。
+    want_fact("功效 · 闭式预测与 paired_bootstrap 真跑逐组一致",
+              power["closed_form_matches_paired_bootstrap"], True)
 
     want_fact("延迟 · 三行是三种不同配置",
               sorted((s["concurrency"], s["connection"]) for s in (c1k, c16k, c16f)),

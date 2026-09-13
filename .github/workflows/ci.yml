@@ -40,7 +40,10 @@ jobs:
         run: python bench/bench_all.py --check
       - name: Robustness sweep still holds
         run: python bench/bench_robustness.py --check
-      # 纯标准库的闭式 + 蒙特卡洛，不装 numpy、不看机器性能，进 CI 是安全的。
+      # 三条路算同一件事：闭式、蒙特卡洛（同一套重抽在 bench_power.py 里重写一遍，
+      # 因为 paired_bootstrap 只返回分位数、数不到「均值恰为 0」的频次），以及真调
+      # 一次 campus_bus.stats.paired_bootstrap。全程纯标准库，不装 numpy、不看机器
+      # 性能，进 CI 是安全的。
       # 它还顺带断言「闭式预测下界会被 0 占住」与「产物里的下界确实是 0.0」逐组一致。
       - name: Bootstrap power figures still hold
         run: python bench/bench_power.py --check

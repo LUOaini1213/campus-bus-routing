@@ -374,9 +374,12 @@ class CommittedResults(unittest.TestCase):
 
         第一版断言「MAE 最好的 ridge 不是选路最好的」，而那是**结算真值用错**
         造成的：当时拿基础剖面结算，预测的却是 hist[-1]，越平滑的模型越占便宜。
-        口径修正后 ridge 在两项上都最好，那条断言当场变红——这条测试就是那次
-        更正的化石。现在还站得住的是更弱、也更有意思的一句：**seasonal 的 MAE
-        比 ridge 差 72%，在选路上却分不出来。**
+        口径修正后，在这份不含 LSTM 的三模型结算（results/bench.json）里 ridge 两项
+        都最好，那条断言当场变红——这条测试就是那次更正的化石。**注意口径**：
+        README 第 6 节展示的是四模型表，那里选路上名义最好的是 LSTM（0.0354% 对
+        ridge 的 0.05%），但两者只差 +0.0146 pp、配对自助跨 0，分不出来；所以「ridge
+        两项都最好」只在这份三模型产物里成立，不能当成通用说法。现在还站得住的是
+        更弱、也更有意思的一句：**seasonal 的 MAE 比 ridge 差 72%，在选路上却分不出来。**
         """
         acc = {r["model"]: r["mae_kmh"] for r in self.r["congestion"]["accuracy"]}
         boot = {b["worse_model"]: b for b in self.r["congestion"]["paired_bootstrap"]}
@@ -437,7 +440,7 @@ class Robustness(unittest.TestCase):
 
 class ReadmeNumbers(unittest.TestCase):
     def test_readme_matches_the_committed_results(self):
-        """README 的每个数字都由 scripts/check_readme.py 回算。
+        """README 里出自 results/ 的数字都由 scripts/check_readme.py 回算。
 
         同门三个仓都有这道；本仓前两轮是手工核的，核完就扔——手工核的问题不是
         当时不准，是下次改 README 时没人拦着。

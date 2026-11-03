@@ -168,6 +168,34 @@ class FifoIsLoadBearing(unittest.TestCase):
                         "但幅度小于采样步长，所以采样器看不见——这才是真相")
 
 
+class BruteForceOnTheMainNetwork(unittest.TestCase):
+    """Simple-path enumeration must run on the committed 23-node network."""
+
+    def test_matches_the_reference_on_a_sample(self):
+        names = sorted(NET.nodes)
+        for s, t in [(names[0], names[-1]), (names[3], names[17]), (names[12], names[5])]:
+            for dep in (150, 480, 1080):
+                bf = brute_force(NET, s, t, dep)
+                ref = label_correcting(NET, s, t, dep)
+                self.assertAlmostEqual(bf.arrival, ref.arrival, places=9, msg=(s, t, dep))
+                self.assertAlmostEqual(path_cost(NET, bf.path, dep), bf.arrival, places=9)
+
+    def test_path_cap_stops_exponential_blow_up(self):
+        with self.assertRaises(ValueError):
+            names = sorted(NET.nodes)
+            brute_force(NET, names[0], names[-1], 480.0, max_paths=1)
+
+
+class Hygiene(unittest.TestCase):
+    def test_requirements_files_are_ascii(self):
+        """pip 23.2.1 (bundled with Python 3.11) decodes requirements files with the
+        locale codec; on zh-CN Windows that is GBK, and Chinese comments made
+        `pip install -r requirements.txt` exit 2 with UnicodeDecodeError."""
+        for f in sorted(ROOT.glob("requirements*.txt")):
+            raw = f.read_bytes()
+            self.assertTrue(raw.isascii(), "%s has non-ASCII bytes" % f.name)
+
+
 class Reachability(unittest.TestCase):
     def test_every_ordered_pair_is_reachable(self):
         """`admin` 曾经入度为 0，导致 30 个查询被静默跳过、README 的算式对不上。"""
@@ -360,6 +388,14 @@ class CommittedResults(unittest.TestCase):
         self.assertEqual(self.r["routing"]["dijkstra_optimal"], "%d/%d" % (n, n))
         self.assertEqual(self.r["routing"]["astar_optimal"], "%d/%d" % (n, n))
 
+    def test_brute_force_agreed_on_every_query_of_the_main_network(self):
+        """README and the portfolio say four solvers agree on the 600 queries. Until
+        2026-11-03 brute force refused graphs above 8 nodes and had only ever run on
+        the 4-node counterexample, so that claim was not backed. Now it is."""
+        n = self.r["routing"]["queries"]
+        self.assertEqual(n, 600)
+        self.assertEqual(self.r["routing"]["brute_force_agrees"], "%d/%d" % (n, n))
+
     def test_relax_threshold_buys_nothing(self):
         rows = {r["threshold_min"]: r for r in self.r["relax_threshold"]["rows"]}
         base = rows[0.0]
@@ -476,6 +512,32 @@ class Service(unittest.TestCase):
             srv.shutdown()
             srv.server_close()
             t.join(timeout=5)
+
+    def test_listen_backlog_fits_the_benchmark_concurrency(self):
+        """The 2026-09 latency tail (515 ms / 1027 ms) was listen-queue overflow at
+        socketserver's default backlog of 5, hit by 16 concurrent clients."""
+        from campus_bus.service import LISTEN_BACKLOG, serve
+        srv = serve(0, "127.0.0.1")
+        try:
+            self.assertGreaterEqual(srv.request_queue_size, 64)
+            self.assertEqual(srv.request_queue_size, LISTEN_BACKLOG)
+            self.assertTrue(srv.daemon_threads)
+        finally:
+            srv.server_close()
+        old = serve(0, "127.0.0.1", backlog=5)          # the bench's reproduction knob
+        try:
+            self.assertEqual(old.request_queue_size, 5)
+        finally:
+            old.server_close()
+
+    def test_committed_latency_runs_record_their_backlog(self):
+        for name in ("service_c1_keep.json", "service_c16_keep.json",
+                     "service_c16_fresh.json"):
+            d = json.loads((ROOT / "results" / name).read_text(encoding="utf-8"))
+            self.assertGreaterEqual(d["listen_backlog"], 64, name)
+        d = json.loads((ROOT / "results" / "service_c16_fresh_backlog5.json")
+                       .read_text(encoding="utf-8"))
+        self.assertEqual(d["listen_backlog"], 5)
 
 
 if __name__ == "__main__":

@@ -2,13 +2,15 @@
  "requests": 600,
  "concurrency": 16,
  "connection": "keep-alive",
+ "listen_backlog": 128,
+ "platform": "win32",
  "nodes": 23,
  "edges": 58,
  "latency_ms": {
-  "p50": 3.574,
-  "p95": 6.785,
-  "p99": 17.706,
-  "max": 512.515
+  "p50": 6.148,
+  "p95": 11.254,
+  "p99": 25.569,
+  "max": 34.96
  },
  "note": "HTTP 往返，含 socket、JSON 编解码与服务端求解；机器不同结果不同，这个数只对本机有意义。"
 }

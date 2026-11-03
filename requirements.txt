@@ -1,14 +1,18 @@
-# 运行路由服务不需要任何第三方包（见 Dockerfile）。
-# 以下是跑 bench 与测试所需，**钉死版本**：本机与 CI 必须一致。
+# The routing service itself needs no third-party package (see Dockerfile).
+# These are for the benchmarks and tests, and the versions are PINNED so that
+# local runs and CI install the same thing.
 #
-# 为什么钉死而不是 >= ：numpy 的 Generator（PCG64）只在同一个 feature release
-# 内承诺流稳定（NEP 19）。用 >= 的话 CI 会装最新版，一旦 Generator 的实现变了，
-# 抽样结果全变、--check 直接红，而根因与代码无关。配对自助已经改成纯标准库
-# （campus_bus/stats.py），OD 对也已固化进 bench/od_pairs.json，剩下的 numpy
-# 随机性只在 GPS 那一节，钉死版本把它也锁上。
+# Why pinned instead of >=: numpy's Generator (PCG64) only promises a stable
+# stream within one feature release (NEP 19). With >= CI would install the
+# newest release, the sampled numbers could change and --check would fail for
+# a reason unrelated to the code. The paired bootstrap is pure stdlib
+# (campus_bus/stats.py) and the OD pairs are frozen in bench/od_pairs.json;
+# the remaining numpy randomness is in the GPS section, and the pin locks it.
+#
+# Keep this file ASCII-only: older pip (e.g. 23.2.1, bundled with Python 3.11)
+# decodes it with the locale codec (GBK on zh-CN Windows) and fails on non-ASCII.
 numpy==1.24.3
 scikit-learn==1.3.0
-# networkx 只被测试用到：把静态快照交给第三方实现独立求一遍（见
-# tests/test_all.py::ThirdPartyOracle）。第一版漏了它，CI 第一步就会
-# ModuleNotFoundError —— 本机恰好装过，所以本地全绿掩盖了这个问题。
+# networkx is used only by the tests, as an independent third-party solver on a
+# frozen snapshot (tests/test_all.py::ThirdPartyOracle).
 networkx==3.1

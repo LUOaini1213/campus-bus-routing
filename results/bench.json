@@ -12,6 +12,7 @@
   "dijkstra_optimal": "600/600",
   "astar_optimal": "600/600",
   "pruned_optimal": "600/600",
+  "brute_force_agrees": "600/600",
   "expansions_mean": {
    "dijkstra": 12.09,
    "astar": 6.95,

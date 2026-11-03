@@ -17,7 +17,7 @@
 | [PyTorch](https://pytorch.org/) | **可选**：`bench/bench_all.py --lstm` 的单层 LSTM，CI 不装 | BSD-3-Clause |
 
 运行时（`python -m campus_bus.service` 与 Docker 镜像）**不依赖上述任何一个**：
-`Network.load` 在 numpy 缺席时退回纯 Python 列表，CI 里专门卸掉 numpy 验证过。
+`Network.load` 在 numpy 缺席时退回纯 Python 列表；CI 的 container 任务在不装任何第三方包的镜像里起服务、发 HTTP 请求验证过。
 
 配对自助（`campus_bus/stats.py`）是自己写的纯标准库实现，不用 numpy——
 `Generator` 的流跨大版本不承诺稳定（NEP 19），而这个仓的结论要跨机器复现。

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""分时最早到达路由：二叉堆 Dijkstra、A*、以及一个用来判对错的参照实现。
+"""分时最早到达路由：二叉堆 Dijkstra、A*、标签修正参照实现与简单路径穷举。
 
-三个求解器解同一个问题（给定出发时刻的最早到达），但可信度不同：
+四个求解器解同一个问题（给定出发时刻的最早到达），但可信度不同：
 
   label_correcting  标签修正（Bellman-Ford 式），不依赖 Dijkstra 的最优性前提，
                     在 FIFO 网络上必然最优 —— 拿它当**参照答案**。
@@ -9,15 +9,16 @@
                     就是跟上面那个比。
   astar             同一个堆，加一个可采纳启发式 h = 欧氏距离 / 最高限速。
                     只减少展开的节点数，不改变答案。
+  brute_force       枚举全部简单路径，不假设 FIFO；只适合小图（见其 docstring）。
 
 `relax_threshold` 是「动态松弛阈值」：改进小于该阈值（分钟）的松弛直接丢弃。
-它能少展开一些节点，代价是可能错过最优解——所以它默认关闭，
-`bench/bench_all.py::bench_threshold` 把「省了多少展开 / 丢了多少最优」一起量出来。
+它会丢掉最优解，却几乎省不下展开（原因见 `dijkstra` 的 docstring）；默认关闭，
+`bench/bench_all.py::bench_threshold` 把「省了多少展开 / 丢了多少最优」一起量出来，
+数字在 `results/bench.json` 的 `relax_threshold.rows`。
 """
 from __future__ import annotations
 
 import heapq
-import itertools
 from collections import deque
 from dataclasses import dataclass
 
@@ -56,8 +57,9 @@ def dijkstra(net: Network, src: str, dst: str, depart_min: float,
     `relax_threshold` 是「动态松弛阈值」，**它省不下任何展开，这是它的实现
     位置决定的、不是实验结论**：阈值加在松弛条件上，而一个节点首次被发现时
     `cur = INF`，`INF - thr` 仍是 INF，所以它永远挡不住首次入堆；展开数的下界
-    恒等于可达节点数。把它开到 1e9（等于让算法彻底退化）实测展开仍是 12.201，
-    只比 0 少 0.4%。留着它是为了把这个教训摆在明处，默认 0。
+    恒等于可达节点数。把它开到 1e9（等于让算法彻底退化）展开数也几乎不变，
+    实测见 `results/bench.json` 的 `relax_threshold.rows`（README 第 4 节）。
+    留着它是为了把这个教训摆在明处，默认 0。
 
     `prune` 才是真正能减少展开的近似：用 A* 的可采纳启发式做**上界剪枝**
     —— 当 `arr + h(v) >= 已知的 dst 最优到达` 时，这个节点不可能改进答案，
@@ -99,24 +101,42 @@ def dijkstra(net: Network, src: str, dst: str, depart_min: float,
 
 
 def brute_force(net: Network, src: str, dst: str, depart_min: float,
-                max_nodes: int = 8) -> Result:
-    """枚举全部简单路径取最早到达。**唯一不假设 FIFO 的真值来源。**
+                max_paths: int = 100_000) -> Result:
+    """枚举 src→dst 的全部简单路径取最早到达。**唯一不假设 FIFO 的真值来源。**
 
     另外三个求解器都遵循「每个节点只保留最早标签」，在非 FIFO 网上会**一起**
     给出次优解——它们互相印证不了这一点，因为共享同一个假设。只有穷举能。
-    仅供小图（默认 ≤ 8 节点）使用。
+
+    枚举沿出边做深度优先，只走真实存在的边（第一版是对全部中间节点做排列，
+    只能用在 ≤ 8 节点的小图上）。23 节点的提交路网上任一 OD 对最多几十条简单路径，
+    所以 `bench_all.py` 能在全部 600 次查询上拿它对照。路径数超过 `max_paths`
+    就报错，防止在网格大图上指数爆炸。
     """
-    if net.n_nodes() > max_nodes:
-        raise ValueError("brute_force 只用于 <= %d 节点的小图，当前 %d"
-                         % (max_nodes, net.n_nodes()))
     best, best_path = INF, []
-    others = [n for n in sorted(net.nodes) if n not in (src, dst)]
-    for r in range(len(others) + 1):
-        for mid in itertools.permutations(others, r):
-            p = [src] + list(mid) + [dst]
-            c = path_cost(net, p, depart_min)
+    seen = {src}
+    path = [src]
+    count = 0
+
+    def dfs(u: str) -> None:
+        nonlocal best, best_path, count
+        if u == dst:
+            count += 1
+            if count > max_paths:
+                raise ValueError("brute_force: more than %d simple paths %s->%s; "
+                                 "use it on small graphs only" % (max_paths, src, dst))
+            c = path_cost(net, path, depart_min)
             if c < best:
-                best, best_path = c, p
+                best, best_path = c, list(path)
+            return
+        for v in sorted({e.v for e in net.out[u]}):
+            if v not in seen:
+                seen.add(v)
+                path.append(v)
+                dfs(v)
+                path.pop()
+                seen.discard(v)
+
+    dfs(src)
     return Result(best, best_path, 0, 0)
 
 

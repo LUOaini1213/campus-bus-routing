@@ -28,7 +28,8 @@ sys.path.insert(0, str(ROOT))
 
 from campus_bus import congestion, fleet, gps, policies, stats   # noqa: E402
 from campus_bus.network import BUCKET_MIN, Network               # noqa: E402
-from campus_bus.routing import astar, dijkstra, label_correcting, path_cost  # noqa: E402
+from campus_bus.routing import (astar, brute_force, dijkstra,     # noqa: E402
+                                label_correcting, path_cost)
 
 RESULTS = ROOT / "results"
 DEPARTURES = [420, 450, 480, 510, 720, 1020, 1050, 1080, 1110, 150]   # 覆盖双峰与平峰
@@ -112,7 +113,7 @@ def od_pairs(net: Network, limit: int = 60, seed: int = 5):
 
 def bench_routing(net: Network) -> dict:
     pairs = od_pairs(net)
-    n = ok_d = ok_a = ok_p = 0
+    n = ok_d = ok_a = ok_p = ok_b = 0
     exp_d, exp_a, exp_r, exp_p, lat_ms = [], [], [], [], []
     for s, t in pairs:
         for dep in DEPARTURES:
@@ -124,7 +125,9 @@ def bench_routing(net: Network) -> dict:
             lat_ms.append((time.perf_counter() - t0) * 1000.0)
             a = astar(net, s, t, dep)
             pr = dijkstra(net, s, t, dep, prune=True)      # 上界剪枝
+            bf = brute_force(net, s, t, dep)               # 简单路径穷举，不假设 FIFO
             n += 1
+            ok_b += abs(bf.arrival - ref.arrival) < 1e-9
             ok_d += abs(d.arrival - ref.arrival) < 1e-9
             ok_a += abs(a.arrival - ref.arrival) < 1e-9
             ok_p += abs(pr.arrival - ref.arrival) < 1e-9
@@ -137,6 +140,7 @@ def bench_routing(net: Network) -> dict:
         "dijkstra_optimal": "%d/%d" % (ok_d, n),
         "astar_optimal": "%d/%d" % (ok_a, n),
         "pruned_optimal": "%d/%d" % (ok_p, n),
+        "brute_force_agrees": "%d/%d" % (ok_b, n),
         "expansions_mean": {"dijkstra": round(statistics.mean(exp_d), 2),
                             "astar": round(statistics.mean(exp_a), 2),
                             "pruned": round(statistics.mean(exp_p), 2),

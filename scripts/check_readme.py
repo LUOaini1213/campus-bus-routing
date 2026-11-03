@@ -102,6 +102,8 @@ def main() -> int:
          [r["astar_optimal"], r["expansions_mean"]["astar"]])
     want("路由 · 上界剪枝", r"\| 上界剪枝 \| \*\*([\d/]+)\*\* \| ([\d.]+) \|",
          [r["pruned_optimal"], r["expansions_mean"]["pruned"]])
+    want("路由 · 简单路径穷举", r"\| 简单路径穷举 \| \*\*([\d/]+)\*\* \| — \|",
+         [r["brute_force_agrees"]])
     want("路由 · A\\* 省下比例", r"少展开 \*\*([\d.]+)%\*\*", [r["astar_expansion_saving_pct"]])
     want("路由 · 剪枝省下比例", r"剪枝省下 \*\*([\d.]+)%\*\*", [r["prune_expansion_saving_pct"]])
 
@@ -112,6 +114,11 @@ def main() -> int:
     want("FIFO · 最大下降", r"最大下降 \*\*([\d.]+)\*\* min", [net["max_boundary_drop_min"]])
 
     thr = {row["threshold_min"]: row for row in bench["relax_threshold"]["rows"]}
+    want("阈值 · 查询数", r"n = (\d+) 次查询（(\d+) 组 OD × (\d+) 个出发时刻）",
+         [int(thr[0.0]["optimal"].split("/")[1]), 40, 6])
+    want("阈值 · 默认展开与第 3 节对照",
+         r"默认 Dijkstra 在这里平均展开 ([\d.]+)、在第 3 节是 ([\d.]+)",
+         [thr[0.0]["expansions_mean"], r["expansions_mean"]["dijkstra"]])
     want("阈值 · 退化对照", r"开到 \*\*1e9\*\*[^|]*?展开仍是 \*\*([\d.]+)\*\*",
          [thr[1e9]["expansions_mean"]])
 
@@ -126,19 +133,24 @@ def main() -> int:
     g = bench["gps"]
     want("GPS · 原始观测误差", r"原始观测平均误差\s*\*\*([\d.]+) m\*\*",
          [g["raw_observation_error"]["mean_m"]])
-    want("GPS · 15% 两行", r"\| 15% \| 26 点 \| 朴素插值 \| ([\d.]+) m \| ([\d.]+) m \| \*\*([\d.]+) m\*\* \|",
-         [g["rate_15"]["raw"]["kept"]["mean_m"], g["rate_15"]["raw"]["gap"]["mean_m"],
+    want("GPS · 15% 两行",
+         r"\| 15% \| ([\d.]+)% \| 26 点 \| 朴素插值 \| ([\d.]+) m \| ([\d.]+) m \| \*\*([\d.]+) m\*\* \|",
+         [g["rate_15"]["actual_rate"] * 100,
+          g["rate_15"]["raw"]["kept"]["mean_m"], g["rate_15"]["raw"]["gap"]["mean_m"],
           g["rate_15"]["raw"]["gap"]["p95_m"]])
+    # 「15%」只是目标值；实际丢失率由成串丢点决定，必须与产物的 actual_rate 一致。
+    want("GPS · 5% 实际丢失率", r"\| 5% \| ([\d.]+)% \| 15 点 \|", [g["rate_5"]["actual_rate"] * 100])
+    want("GPS · 30% 实际丢失率", r"\| 30% \| ([\d.]+)% \| 26 点 \|", [g["rate_30"]["actual_rate"] * 100])
     want("GPS · 15% 匹配弧长",
-         r"\| \| \| \*\*匹配\+弧长\*\* \| \*\*([\d.]+) m\*\* \| \*\*([\d.]+) m\*\* \| ([\d.]+) m \|",
+         r"\| \| \| \| \*\*匹配\+弧长\*\* \| \*\*([\d.]+) m\*\* \| \*\*([\d.]+) m\*\* \| ([\d.]+) m \|",
          [g["rate_15"]["arclength"]["kept"]["mean_m"], g["rate_15"]["arclength"]["gap"]["mean_m"],
           g["rate_15"]["arclength"]["gap"]["p95_m"]], n_expected=3, idx=1)
     want("GPS · 5% 匹配弧长",
-         r"\| \| \| \*\*匹配\+弧长\*\* \| \*\*([\d.]+) m\*\* \| \*\*([\d.]+) m\*\* \| ([\d.]+) m \|",
+         r"\| \| \| \| \*\*匹配\+弧长\*\* \| \*\*([\d.]+) m\*\* \| \*\*([\d.]+) m\*\* \| ([\d.]+) m \|",
          [g["rate_5"]["arclength"]["kept"]["mean_m"], g["rate_5"]["arclength"]["gap"]["mean_m"],
           g["rate_5"]["arclength"]["gap"]["p95_m"]], n_expected=3, idx=0)
     want("GPS · 30% 匹配弧长",
-         r"\| \| \| \*\*匹配\+弧长\*\* \| \*\*([\d.]+) m\*\* \| \*\*([\d.]+) m\*\* \| ([\d.]+) m \|",
+         r"\| \| \| \| \*\*匹配\+弧长\*\* \| \*\*([\d.]+) m\*\* \| \*\*([\d.]+) m\*\* \| ([\d.]+) m \|",
          [g["rate_30"]["arclength"]["kept"]["mean_m"], g["rate_30"]["arclength"]["gap"]["mean_m"],
           g["rate_30"]["arclength"]["gap"]["p95_m"]], n_expected=3, idx=2)
 
@@ -259,28 +271,67 @@ def main() -> int:
     # 「README 的字面值 == 已提交 JSON」这件事与本机性能无关，CI 里比它是安全的。
     c1k, c16k, c16f = (load("service_c1_keep.json"), load("service_c16_keep.json"),
                        load("service_c16_fresh.json"))
-    lat_keep = (r"\| (\d+) \| 复用 \| ([\d.]+) ms \| ([\d.]+) ms \| "
-                r"\*\*([\d.]+) ms\*\* \| ([\d.]+) ms \|")
-    for label, svc, idx in (("并发 1 复用", c1k, 0), ("并发 16 复用", c16k, 1)):
+    k5, f5 = load("service_c16_keep_backlog5.json"), load("service_c16_fresh_backlog5.json")
+    conn_label = {"keep-alive": "复用", "fresh-per-request": "每请求新建"}
+    lat_row = (r"\| (\d+) \| (复用|每请求新建) \| (\d+)(?:（旧默认）)? \| ([\d.]+) ms \| "
+               r"([\d.]+) ms \| \*\*([\d.]+) ms\*\* \| ([\d.]+) ms \|")
+    table = re.findall(lat_row, text)
+    for svc in (c1k, c16k, c16f, k5, f5):
         L = svc["latency_ms"]
-        want("延迟 · " + label, lat_keep,
-             [svc["concurrency"], L["p50"], L["p95"], L["p99"], L["max"]],
-             n_expected=2, idx=idx)
-    Lf = c16f["latency_ms"]
-    want("延迟 · 并发 16 每请求新建",
-         r"\| (\d+) \| 每请求新建 \| ([\d.]+) ms \| ([\d.]+) ms \| "
-         r"\*\*([\d.]+) ms\*\* \| ([\d.]+) ms \|",
-         [c16f["concurrency"], Lf["p50"], Lf["p95"], Lf["p99"], Lf["max"]])
-    want("延迟 · 前两行的 p99", r"p99 分别是 ([\d.]+) ms 与 ([\d.]+) ms",
-         [c1k["latency_ms"]["p99"], c16k["latency_ms"]["p99"]])
-    want("延迟 · 新建连接的 p99 与倍数",
-         r"新建 TCP 连接时 p99 是 ([\d.]+) ms，比复用连接差 \*\*([\d.]+) 倍\*\*",
-         [Lf["p99"], Lf["p99"] / c16k["latency_ms"]["p99"]])
-    want("延迟 · 第三行的 p50", r"第三行的 p50 只有 ([\d.]+) ms", [Lf["p50"]])
-    want("延迟 · 复用行的 max 孤点", r"复用连接那行的 max 也有一个 ([\d.]+) ms 的孤点",
-         [c16k["latency_ms"]["max"]])
+        key = (str(svc["concurrency"]), conn_label[svc["connection"]], str(svc["listen_backlog"]))
+        hits = [h for h in table if h[:3] == key]
+        if len(hits) != 1:
+            problems.append("延迟 · %s: 期望 README 里恰有 1 行，实际 %d 行" % (key, len(hits)))
+            continue
+        for shown, e in zip(hits[0][3:], [L["p50"], L["p95"], L["p99"], L["max"]]):
+            checked += 1
+            if not close(shown, float(e)):
+                problems.append("延迟 · %s: README %s vs 产物 %s" % (key, shown, e))
+    if len(table) != 5:
+        problems.append("延迟表: 期望 5 行，实际 %d 行" % len(table))
+    want("延迟 · backlog 128 三行的 p99",
+         r"p99 分别是 ([\d.]+) ms、([\d.]+) ms 与 ([\d.]+) ms",
+         [c1k["latency_ms"]["p99"], c16k["latency_ms"]["p99"], c16f["latency_ms"]["p99"]])
+    want("延迟 · backlog 5 → 128 的 p99",
+         r"每请求新建连接的 p99 从 ([\d.]+) ms 降到 ([\d.]+) ms",
+         [f5["latency_ms"]["p99"], c16f["latency_ms"]["p99"]])
+    want("延迟 · p50 看不见尾部", r"backlog 5 那行 p50 只有 ([\d.]+) ms，\s*p99 却是 ([\d.]+) ms",
+         [f5["latency_ms"]["p50"], f5["latency_ms"]["p99"]])
     want("延迟 · 求解本身的 p99", r"求解本身 p99 只有 \*\*([\d.]+) ms\*\*",
          [r["latency_ms"]["p99"]])
+
+    # --- 首屏 Findings at a glance ------------------------------------------
+    want("首屏 · 策略", r"free-flow weights at peak: (\d+/\d+) routes worse, worst trip \+([\d.]+)%; "
+         r"peak weights off-peak: worst trip \+([\d.]+)%; time-dependent: (\d+/\d+)",
+         [pk["free_flow"]["routes_worse_than_optimal"], pk["free_flow"]["max_excess_pct"],
+          of["peak_profile"]["max_excess_pct"], pk["time_dep"]["routes_worse_than_optimal"]])
+    want("首屏 · FIFO", r"(\d+) of (\d+) slot boundaries drop; max drop ([\d.]+) min",
+         [net["boundary_drops"], 16646, net["max_boundary_drop_min"]])
+    want("首屏 · 四个求解器",
+         r"brute force each match the reference on (\d+)/(\d+) queries; A\\\* expands ([\d.]+)% fewer",
+         [r["queries"], r["queries"], r["astar_expansion_saving_pct"]])
+    want("首屏 · 阈值",
+         r"([\d.]+) vs ([\d.]+) mean expansions even at 1e9 \(n = (\d+)\); upper-bound pruning saves ([\d.]+)%",
+         [thr[1e9]["expansions_mean"], thr[0.0]["expansions_mean"],
+          int(thr[0.0]["optimal"].split("/")[1]), r["prune_expansion_saving_pct"]])
+    g15 = g["rate_15"]
+    want("首屏 · GPS",
+         r"([\d.]+) → ([\d.]+) m at ([\d.]+)% actual dropout; gap-point p95 gets worse \(([\d.]+) → ([\d.]+) m\)",
+         [g15["raw"]["kept"]["mean_m"], g15["arclength"]["kept"]["mean_m"], g15["actual_rate"] * 100,
+          g15["raw"]["gap"]["p95_m"], g15["arclength"]["gap"]["p95_m"]])
+    want("首屏 · 预测",
+         r"ridge vs LSTM: \+([\d.]+) pp, 95% CI \[([\d.]+), ([\d.]+)\], only (\d+)/(\d+) pairs differ",
+         [boot["ridge"]["mean_diff_pct_points"], boot["ridge"]["ci95"][0], boot["ridge"]["ci95"][1],
+          boot["ridge"]["n_differing"], 300])
+    want("首屏 · 堆", r"([\d.]+)× faster at 100 nodes, ([\d.]+)× at 4,900",
+         [sc[100]["heap_speedup_x"], sc[4900]["heap_speedup_x"]])
+    want("首屏 · HTTP p99", r"\| HTTP p99 once the listen backlog fits \| ([\d.]+) / ([\d.]+) / ([\d.]+) ms",
+         [c1k["latency_ms"]["p99"], c16k["latency_ms"]["p99"], c16f["latency_ms"]["p99"]])
+
+    # README 里声明的测试个数必须等于 tests/ 里真实的测试方法数。
+    n_tests = sum(len(re.findall(r"^    def test_", f.read_text(encoding="utf-8"), re.M))
+                  for f in sorted((ROOT / "tests").glob("test_*.py")))
+    want("自述 · 测试个数", r"# (\d+) 个测试", [n_tests])
 
     # 三份 service_*.json 的元信息：README 的三行必须真的是三次不同配置的测量，
     # 而且量在同一张图上。这些不是 README 里的数字，单独计数。
@@ -298,15 +349,25 @@ def main() -> int:
     want_fact("功效 · 闭式预测与 paired_bootstrap 真跑逐组一致",
               power["closed_form_matches_paired_bootstrap"], True)
 
-    want_fact("延迟 · 三行是三种不同配置",
-              sorted((s["concurrency"], s["connection"]) for s in (c1k, c16k, c16f)),
-              [(1, "keep-alive"), (16, "fresh-per-request"), (16, "keep-alive")])
-    want_fact("延迟 · 三次测量的请求数一致",
-              [s["requests"] for s in (c1k, c16k, c16f)], [c1k["requests"]] * 3)
-    want_fact("延迟 · 三次都量在同一张图上",
-              [(s["nodes"], s["edges"]) for s in (c1k, c16k, c16f)],
-              [(net["nodes"], net["edges"])] * 3)
-    for name, svc in (("c1_keep", c1k), ("c16_keep", c16k), ("c16_fresh", c16f)):
+    allsvc = (c1k, c16k, c16f, k5, f5)
+    want_fact("延迟 · 五行是五种不同配置",
+              sorted((s["concurrency"], s["connection"], s["listen_backlog"]) for s in allsvc),
+              [(1, "keep-alive", 128), (16, "fresh-per-request", 5),
+               (16, "fresh-per-request", 128), (16, "keep-alive", 5), (16, "keep-alive", 128)])
+    want_fact("延迟 · 五次测量的请求数一致",
+              [s["requests"] for s in allsvc], [c1k["requests"]] * 5)
+    want_fact("延迟 · 五次都量在同一张图上",
+              [(s["nodes"], s["edges"]) for s in allsvc],
+              [(net["nodes"], net["edges"])] * 5)
+    # 比较句也要钉住：「< 50 ms 在 backlog 128 的三行都成立」与「p50 看不见尾部」。
+    want_fact("延迟 · backlog 128 三行 p99 都 < 50 ms",
+              [s["latency_ms"]["p99"] < 50 for s in (c1k, c16k, c16f)], [True] * 3)
+    want_fact("延迟 · backlog 5 新建连接那行 p99 至少是 p50 的 50 倍",
+              f5["latency_ms"]["p99"] >= 50 * f5["latency_ms"]["p50"], True)
+    want_fact("延迟 · 修好 backlog 后新建连接的 p99 确实降了",
+              c16f["latency_ms"]["p99"] < f5["latency_ms"]["p99"], True)
+    for name, svc in (("c1_keep", c1k), ("c16_keep", c16k), ("c16_fresh", c16f),
+                      ("c16_keep_backlog5", k5), ("c16_fresh_backlog5", f5)):
         L = svc["latency_ms"]
         want_fact("延迟 · %s 的分位数单调" % name,
                   [L["p50"] <= L["p95"] <= L["p99"] <= L["max"]], [True])

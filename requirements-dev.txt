@@ -1,3 +1,4 @@
-# Dockerfile 的注释引用了这个文件名，但它一直不存在。
-# 运行镜像不装任何第三方包；开发与评测用下面这些。
+# The Dockerfile comments refer to this file name.
+# The runtime image installs no third-party package; development and
+# benchmarking use the packages below. Keep this file ASCII-only.
 -r requirements.txt

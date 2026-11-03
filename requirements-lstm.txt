@@ -1,2 +1,3 @@
-# 可选：只有 `python bench/bench_all.py --lstm` 需要。CI 不装。
+# Optional: only `python bench/bench_all.py --lstm` needs it. CI does not install it.
+# Keep this file ASCII-only.
 torch>=2.2

@@ -85,9 +85,32 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def serve(port: int = 8080, host: str = "0.0.0.0") -> ThreadingHTTPServer:
+LISTEN_BACKLOG = 128
+
+
+class RouteServer(ThreadingHTTPServer):
+    """`ThreadingHTTPServer` with a listen backlog sized for concurrent clients.
+
+    socketserver's default `request_queue_size` is 5. With 16 concurrent clients
+    opening connections, the accept queue overflows, connects are retried by the
+    client, and the latency tail jumps in steps of roughly 0.5 s / 1 s. That is
+    what the 2026-09 table's 515 ms / 1027 ms tail measured (README, latency
+    section). `bench/bench_service.py --backlog 5` reproduces it on purpose.
+    """
+    request_queue_size = LISTEN_BACKLOG
+    daemon_threads = True
+
+
+def serve(port: int = 8080, host: str = "0.0.0.0",
+          backlog: int | None = None) -> ThreadingHTTPServer:
+    """Build the server (not started). `backlog` overrides the listen queue size;
+    it exists only so the benchmark can reproduce the old default of 5."""
     net()                                                # 先把图加载好再开门
-    return ThreadingHTTPServer((host, port), Handler)
+    if backlog is None:
+        return RouteServer((host, port), Handler)
+    cls = type("RouteServerBacklog%d" % backlog, (RouteServer,),
+               {"request_queue_size": backlog})
+    return cls((host, port), Handler)
 
 
 def main() -> int:

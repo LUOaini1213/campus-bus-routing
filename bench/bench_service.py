@@ -7,6 +7,11 @@
 
     python bench/bench_service.py            # 单线程顺序压
     python bench/bench_service.py --concurrency 16
+    python bench/bench_service.py --concurrency 16 --fresh-conn --backlog 5
+
+`--backlog 5` reproduces socketserver's default listen queue, which the service
+used before 2026-11-03; it is kept only to show where the old 0.5 s / 1 s tail
+came from. Without it the server uses `campus_bus.service.LISTEN_BACKLOG`.
 """
 from __future__ import annotations
 
@@ -40,9 +45,11 @@ def main() -> int:
     ap.add_argument("--out", default=None)
     ap.add_argument("--fresh-conn", action="store_true",
                     help="每次请求新建 TCP 连接（默认复用，像真实客户端那样）")
+    ap.add_argument("--backlog", type=int, default=None,
+                    help="override the listen backlog (default: LISTEN_BACKLOG)")
     args = ap.parse_args()
 
-    srv = serve(args.port, "127.0.0.1")
+    srv = serve(args.port, "127.0.0.1", backlog=args.backlog)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     local = threading.local()
 
@@ -72,9 +79,12 @@ def main() -> int:
         with ThreadPoolExecutor(args.concurrency) as pool:
             lat = list(pool.map(one, range(args.n)))
     srv.shutdown()
+    srv.server_close()
 
     res = {"requests": args.n, "concurrency": args.concurrency,
            "connection": "fresh-per-request" if args.fresh_conn else "keep-alive",
+           "listen_backlog": srv.request_queue_size,
+           "platform": sys.platform,
            "nodes": net().n_nodes(), "edges": net().n_edges(),
            "latency_ms": {"p50": round(statistics.median(lat), 3),
                           "p95": round(float(np.percentile(lat, 95)), 3),
@@ -84,7 +94,8 @@ def main() -> int:
                     "机器不同结果不同，这个数只对本机有意义。")}
     print(json.dumps(res, ensure_ascii=False, indent=1))
     if args.out:
-        Path(args.out).write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+        Path(args.out).write_text(json.dumps(res, ensure_ascii=False, indent=1),
+                                  encoding="utf-8", newline="\n")
     return 0
 
 
